@@ -1,9 +1,9 @@
 # Copyright 2026 Canonical Ltd.
 # SPDX-License-Identifier: GPL-3.0-only
 
-"""StabilizerReport - Final summary report."""
+"""StabilizerReport - Final summary report and detailed REPORT.md."""
 
-from __future__ import annotations
+from pathlib import Path
 
 from rich.console import Console
 from rich.table import Table
@@ -11,9 +11,13 @@ from rich.table import Table
 from stabilizer.types import StabilizerState
 
 
+
 def run(state: StabilizerState) -> StabilizerState:
-    """Generate final summary report."""
+    """Generate clean console summary and detailed REPORT.md with all exclusions."""
     console = Console()
+    output_dir = state.output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    report_path = output_dir / "REPORT.md"
 
     console.print("\n" + "=" * 60)
     console.print(f"[bold]Stabilizer Report: {state.package}[/bold]")
@@ -25,64 +29,106 @@ def run(state: StabilizerState) -> StabilizerState:
     )
     console.print("=" * 60)
 
-    # Summary statistics
+    # Console: High-level summary only
     console.print("\n[bold]Summary:[/bold]")
     console.print(f"  Total commits analyzed: {len(state.all_commits)}")
-    console.print(f"  Safe changes identified: {len(state.safe_changes)}")
     console.print(f"  Applicable changes: {len(state.applicable_changes)}")
-    console.print(f"  Testable changes: {len(state.testable_changes)}")
+    console.print(f"  Safe SRU changes: {len(state.safe_changes)}")
+    console.print(f"  Testable changes: {len([tc for tc in state.testable_changes if tc.testable])}")
     console.print(f"  SRU bug templates generated: {len(state.sru_bugs)}")
 
-    # SRU bugs
-    if state.sru_bugs:
-        console.print("\n[bold green]Generated SRU Bug Templates:[/bold green]")
-        table = Table(show_header=True, header_style="bold magenta")
-        table.add_column("Filename")
-        table.add_column("Title")
-        table.add_column("Commits")
-
-        for bug in state.sru_bugs:
-            table.add_row(
-                bug.filename,
-                bug.title,
-                f"{len(bug.commits)} commit(s)",
-            )
-        console.print(table)
-
-    # Exclusions - grouped by stage with clear reasoning
     if state.exclusions:
-        console.print("\n[bold yellow]Changes Evaluated But Not Selected:[/bold yellow]")
-        console.print("  (These were considered but did not meet SRU criteria)")
+        by_stage = {}
+        for exc in state.exclusions:
+            by_stage.setdefault(exc.stage, []).append(exc)
 
-        # Group exclusions by stage
-        by_stage: dict[str, list] = {}
+        console.print("\n[bold yellow]Exclusions by stage:[/bold yellow]")
+        for stage, exclusions in by_stage.items():
+            console.print(
+                f"  {stage.replace('_', ' ').title()}: {len(exclusions)} excluded"
+            )
+        console.print(f"\n[dim]Full details including all exclusion reasons written to:[/dim]")
+        console.print(f"[bold]{report_path}[/bold]")
+
+    console.print(f"\n[bold]Output directory:[/bold] {output_dir}")
+
+    # Generate detailed REPORT.md
+    _write_detailed_report(state, report_path)
+
+    return state
+
+
+def _write_detailed_report(state: StabilizerState, report_path: Path) -> None:
+    """Write comprehensive REPORT.md with all exclusions and details."""
+    report = [
+        f"# Stabilizer Report: {state.package}",
+        "",
+        f"**Target:** {state.target_release} ({state.target_version.version if state.target_version else 'N/A'})",
+        f"**Source:** {state.source_release} ({state.source_version.version if state.source_version else 'N/A'})",
+        "",
+        "## Summary",
+        f"- Total commits analyzed: {len(state.all_commits)}",
+        f"- Applicable changes: {len(state.applicable_changes)}",
+        f"- Safe SRU changes: {len(state.safe_changes)}",
+        f"- Testable changes: {len([tc for tc in state.testable_changes if getattr(tc, 'testable', True)])}",
+        f"- SRU bug templates generated: {len(state.sru_bugs)}",
+        "",
+    ]
+
+    # SRU Bugs
+    if state.sru_bugs:
+        report.extend([
+            "## Generated SRU Bug Templates",
+            "",
+        ])
+        for bug in state.sru_bugs:
+            report.extend([
+                f"### {bug.title}",
+                f"**File:** `{bug.filename}`",
+                f"**Impact:** {bug.impact}",
+                f"**Test Plan:** {bug.test_plan}",
+                f"**Regression Potential:** {getattr(bug, 'regression_potential', 'N/A')}",
+                "",
+                "Commits:",
+            ])
+            for commit in bug.commits:
+                report.append(f"- {commit.short_sha}: {commit.subject}")
+            report.append("\n---\n")
+
+    # Detailed Exclusions
+    if state.exclusions:
+        report.extend([
+            "## All Exclusions",
+            "",
+            "Full list of every change that was evaluated but excluded, with exact reasons.",
+            "",
+        ])
+
+        by_stage = {}
         for exc in state.exclusions:
             by_stage.setdefault(exc.stage, []).append(exc)
 
         for stage, exclusions in by_stage.items():
-            console.print(
-                f"\n  [yellow]{stage.replace('_', ' ').title()}:[/yellow] {len(exclusions)} change(s) excluded"
-            )
-            table = Table(show_header=True, header_style="bold yellow", show_lines=True)
-            table.add_column("Change", width=50)
-            table.add_column("Reason", width=60)
+            stage_title = stage.replace('_', ' ').title()
+            report.extend([
+                f"### {stage_title} Exclusions ({len(exclusions)})",
+                "",
+                "| Change | Reason |",
+                "|--------|--------|",
+            ])
+            for exc in exclusions:
+                title = exc.change_title.replace("|", "\\|")
+                reason = exc.reason.replace("|", "\\|").replace("\n", " ")
+                report.append(f"| {title} | {reason} |")
+            report.append("\n")
 
-            for exc in exclusions[:8]:  # Limit to prevent flooding console
-                table.add_row(
-                    exc.change_title[:47] + ("..." if len(exc.change_title) > 47 else ""),
-                    exc.reason[:57] + ("..." if len(exc.reason) > 57 else ""),
-                )
-            console.print(table)
+    report.extend([
+        "",
+        "---",
+        f"Generated by Stabilizer on {state.output_dir}",
+        "",
+        "Note: SRU requires changes to be **safe**, **applicable**, and **testable**. ",
+        "Only changes passing all filters generate SRU bug templates.",
+    ])
 
-            if len(exclusions) > 8:
-                console.print(f"    ... and {len(exclusions) - 8} more exclusions")
-
-        console.print(
-            "\n[yellow]Note:[/yellow] SRU requires changes to be safe, applicable, and testable."
-        )
-        console.print("  Only changes that pass all three filters generate SRU bug templates.")
-
-    # Output location
-    console.print(f"\n[bold]Output directory:[/bold] {state.output_dir}")
-
-    return state
+    report_path.write_text("\n".join(report))
