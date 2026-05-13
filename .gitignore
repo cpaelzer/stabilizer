@@ -1,2 +1,31 @@
-.workshop.lock
+# Copyright 2026 Canonical Ltd.
+# SPDX-License-Identifier: GPL-3.0-only
+
 OPENROUTER_API_KEY
+*.swp
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.venv
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+*.log
+tmp/
+temp/
+*.tmp
+*~
+.DS_Store
+.vscode/
+.idea/
+*.snap
+snap/
+
+# Output directory for generated bug templates
+/output/
