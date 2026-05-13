@@ -21,18 +21,31 @@ def run(state: StabilizerState) -> StabilizerState:
 
     pkg_path = state.work_dir / state.package
 
-    # Checkout the target release applied branch
-    target_branch = f"pkg/applied/{state.target_release}-devel"
-    try:
-        checkout_branch(pkg_path, target_branch)
-    except Exception:
-        # Try without applied prefix
-        target_branch = f"applied/{state.target_release}-devel"
+    # Try multiple candidate branches for the target release in order of preference
+    branch_candidates = [
+        f"ubuntu/{state.target_release}",
+        f"applied/{state.target_release}",
+        f"pkg/applied/{state.target_release}-devel",
+        f"applied/{state.target_release}-devel",
+        state.target_release,
+        "ubuntu/devel",
+        "main",
+        "master",
+    ]
+    checkout_success = False
+    selected_branch = None
+    for candidate in branch_candidates:
         try:
-            checkout_branch(pkg_path, target_branch)
+            checkout_branch(pkg_path, candidate)
+            selected_branch = candidate
+            checkout_success = True
+            print(f"  [dim]→ Using target branch: {candidate}[/dim]")
+            break
         except Exception:
-            # Fall back to the main branch
-            pass
+            continue
+
+    if not checkout_success:
+        print("  [yellow]Warning: Could not checkout specific target branch, using current checkout[/yellow]")
 
     # Add upstream remote if not already added
     if state.repository:
