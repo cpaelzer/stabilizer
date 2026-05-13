@@ -119,6 +119,8 @@ def run(state: StabilizerState) -> StabilizerState:
     if not state.applicable_changes:
         return state
 
+    print(f"  [dim]Generating test plans for {len(state.applicable_changes)} applicable changes...[/dim]")
+
     prompt = _build_prompt(
         state.applicable_changes,
         state.package,
@@ -133,12 +135,16 @@ def run(state: StabilizerState) -> StabilizerState:
     state.testable_changes = testable_changes
 
     # Record excluded changes
-    for i, tc in enumerate(testable_changes):
+    excluded_testable = 0
+    for tc in testable_changes:
         if not tc.testable:
             state.exclusions.append(ExclusionRecord(
                 change_title=tc.applicable_change.change_group.title,
                 stage="testable",
                 reason=tc.test_exclusion_reason or "Not testable",
             ))
+            excluded_testable += 1
+
+    print(f"  [dim]→ Found {len([tc for tc in testable_changes if tc.testable])} testable changes, excluded {excluded_testable}[/dim]")
 
     return state

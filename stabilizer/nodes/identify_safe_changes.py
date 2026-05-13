@@ -119,6 +119,9 @@ def run(state: StabilizerState) -> StabilizerState:
     if not state.all_commits:
         return state
 
+    # Report progress during LLM classification
+    print(f"  [dim]Evaluating {len(state.all_commits)} commits for SRU safety...[/dim]")
+
     prompt = _build_prompt(state.all_commits, state.package)
     response = _call_llm(prompt)
 
@@ -130,6 +133,7 @@ def run(state: StabilizerState) -> StabilizerState:
 
     # Record excluded commits
     safe_shas = {c.sha for g in safe_changes for c in g.commits}
+    excluded_count = 0
     for commit in state.all_commits:
         if commit.sha not in safe_shas:
             state.exclusions.append(ExclusionRecord(
@@ -137,5 +141,8 @@ def run(state: StabilizerState) -> StabilizerState:
                 stage="safe_changes",
                 reason="Not classified as safe SRU change by LLM analysis",
             ))
+            excluded_count += 1
+
+    print(f"  [dim]→ Found {len(safe_changes)} safe changes, excluded {excluded_count} commits[/dim]")
 
     return state

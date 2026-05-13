@@ -45,21 +45,34 @@ def run(state: StabilizerState) -> StabilizerState:
             )
         console.print(table)
 
-    # Exclusions
+    # Exclusions - grouped by stage with clear reasoning
     if state.exclusions:
-        console.print("\n[bold yellow]Excluded Changes:[/bold yellow]")
-        table = Table(show_header=True, header_style="bold yellow")
-        table.add_column("Change")
-        table.add_column("Stage")
-        table.add_column("Reason")
+        console.print("\n[bold yellow]Changes Evaluated But Not Selected:[/bold yellow]")
+        console.print("  (These were considered but did not meet SRU criteria)")
 
+        # Group exclusions by stage
+        by_stage: dict[str, list[ExclusionRecord]] = {}
         for exc in state.exclusions:
-            table.add_row(
-                exc.change_title[:60],
-                exc.stage,
-                exc.reason[:80],
-            )
-        console.print(table)
+            by_stage.setdefault(exc.stage, []).append(exc)
+
+        for stage, exclusions in by_stage.items():
+            console.print(f"\n  [yellow]{stage.replace('_', ' ').title()}:[/yellow] {len(exclusions)} change(s) excluded")
+            table = Table(show_header=True, header_style="bold yellow", show_lines=True)
+            table.add_column("Change", width=50)
+            table.add_column("Reason", width=60)
+
+            for exc in exclusions[:8]:  # Limit to prevent flooding console
+                table.add_row(
+                    exc.change_title[:47] + ("..." if len(exc.change_title) > 47 else ""),
+                    exc.reason[:57] + ("..." if len(exc.reason) > 57 else ""),
+                )
+            console.print(table)
+
+            if len(exclusions) > 8:
+                console.print(f"    ... and {len(exclusions) - 8} more exclusions")
+
+        console.print("\n[yellow]Note:[/yellow] SRU requires changes to be safe, applicable, and testable.")
+        console.print("  Only changes that pass all three filters generate SRU bug templates.")
 
     # Output location
     console.print(f"\n[bold]Output directory:[/bold] {state.output_dir}")

@@ -114,4 +114,6 @@ def run(state: StabilizerState) -> StabilizerState:
     # Get all commits between the two tags from the upstream repo
     state.all_commits = get_commits_between(upstream_path, target_tag, source_tag)
 
+    print(f"  [dim]→ Found tags {target_tag}..{source_tag} with {len(state.all_commits)} commits[/dim]")
+
     return state

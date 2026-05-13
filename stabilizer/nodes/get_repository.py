@@ -122,12 +122,14 @@ def _parse_response(response: str) -> Optional[RepositoryInfo]:
 
 def run(state: StabilizerState) -> StabilizerState:
     """Detect the upstream git repository from the Ubuntu packaging."""
-    work_dir = Path("/tmp/stabilizer-work")
-    work_dir.mkdir(parents=True, exist_ok=True)
-    state.work_dir = work_dir
+    # Use the work_dir from orchestrator (temporary directory) if available
+    if not state.work_dir:
+        work_dir = Path("/tmp/stabilizer-work")
+        work_dir.mkdir(parents=True, exist_ok=True)
+        state.work_dir = work_dir
 
     # Clone the Ubuntu package
-    pkg_path = clone_package(state.package, work_dir)
+    pkg_path = clone_package(state.package, state.work_dir)
     debian_path = pkg_path / "debian"
 
     # Collect hints from packaging
@@ -136,6 +138,8 @@ def run(state: StabilizerState) -> StabilizerState:
         raise RuntimeError(
             f"Could not find any hints in debian/watch or debian/control for {state.package}."
         )
+
+    print(f"  [dim]→ Collected {len(hints)} packaging hints (watch/control)[/dim]")
 
     # Use LLM to identify upstream repository
     prompt = _build_prompt(hints, state.package)
@@ -151,6 +155,8 @@ def run(state: StabilizerState) -> StabilizerState:
         raise RuntimeError(
             f"Could not parse upstream repository URL for {state.package} from LLM response."
         )
+
+    print(f"  [dim]→ LLM identified upstream: {repo_info.url}[/dim]")
 
     state.repository = repo_info
     return state
