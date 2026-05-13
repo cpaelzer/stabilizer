@@ -66,13 +66,7 @@ def run(state: StabilizerState) -> StabilizerState:
 
         success, output = cherry_pick_dry_run(pkg_path, commit.sha)
         if success:
-            applicable.append(
-                ApplicableChange(
-                    change_group=change_group,
-                    applies_cleanly=True,
-                    cherry_pick_output=output,
-                )
-            )
+            applicable.append(commit)
         else:
             state.exclusions.append(
                 ExclusionRecord(
@@ -82,9 +76,13 @@ def run(state: StabilizerState) -> StabilizerState:
                 )
             )
 
-    state.applicable_changes = applicable
+    # Store the list of applicable commits for the next stage (safe classification)
+    # The safe classification stage will create proper ApplicableChange objects with LLM metadata
+    state.applicable_commits = applicable
+
     print(
-        f"  → Found {len(applicable)} applicable changes, "
+        f"  → Found {len(applicable)} applicable changes out of {len(state.all_commits)}, "
         f"excluded {len([e for e in state.exclusions if e.stage == 'applicable'])}"
     )
     return state
+

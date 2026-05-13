@@ -10,7 +10,7 @@ import os
 
 import httpx
 
-from stabilizer.types import ChangeGroup, CommitInfo, ExclusionRecord, StabilizerState
+from stabilizer.types import ApplicableChange, ChangeGroup, CommitInfo, ExclusionRecord, StabilizerState
 
 PROMPT_PATH = os.path.join(os.path.dirname(__file__), "..", "prompts", "safe_changes.txt")
 
@@ -122,11 +122,9 @@ def run(state: StabilizerState) -> StabilizerState:
     This runs after applicability testing to reduce LLM token usage -
     only changes that cherry-pick cleanly are evaluated for SRU safety.
     """
-    # Extract commits from applicable changes (or fall back to all_commits)
-    commits_to_classify = []
-    if state.applicable_changes:
-        for ac in state.applicable_changes:
-            commits_to_classify.extend(ac.change_group.commits)
+    # Extract commits from applicable_commits (set by previous applicability step)
+    if hasattr(state, 'applicable_commits') and state.applicable_commits:
+        commits_to_classify = state.applicable_commits
     else:
         commits_to_classify = state.all_commits
 
@@ -145,13 +143,25 @@ def run(state: StabilizerState) -> StabilizerState:
         response = _call_llm(prompt)
         safe_changes = _parse_response(response, commits_to_classify) if response else []
 
-    state.safe_changes = safe_changes
-
-    # Record excluded commits (only from the ones we actually classified)
+    # Convert safe ChangeGroups into ApplicableChange objects
+    applicable = []
     safe_shas = {c.sha for g in safe_changes for c in g.commits}
     excluded_count = 0
+
     for commit in commits_to_classify:
-        if commit.sha not in safe_shas:
+        if commit.sha in safe_shas:
+            # Find the corresponding safe group
+            for group in safe_changes:
+                if any(c.sha == commit.sha for c in group.commits):
+                    applicable.append(
+                        ApplicableChange(
+                            change_group=group,
+                            applies_cleanly=True,
+                            cherry_pick_output="Previously validated as applicable",
+                        )
+                    )
+                    break
+        else:
             state.exclusions.append(
                 ExclusionRecord(
                     change_title=commit.subject,
@@ -160,6 +170,19 @@ def run(state: StabilizerState) -> StabilizerState:
                 )
             )
             excluded_count += 1
+
+    state.safe_changes = safe_changes
+    # Create proper ApplicableChange objects with LLM metadata for downstream nodes
+    applicable = []
+    for group in safe_changes:
+        applicable.append(
+            ApplicableChange(
+                change_group=group,
+                applies_cleanly=True,
+                cherry_pick_output="Validated as applicable before LLM classification",
+            )
+        )
+    state.applicable_changes = applicable
 
     print(
         f"  → Found {len(safe_changes)} safe changes, excluded {excluded_count} commits"

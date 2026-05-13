@@ -127,12 +127,12 @@ class StabilizerState(BaseModel):
     source_tag: str | None = None
     all_commits: list[CommitInfo] = Field(default_factory=list)
     safe_changes: list[ChangeGroup] = Field(default_factory=list)
+    applicable_commits: list[CommitInfo] = Field(default_factory=list)
     applicable_changes: list[ApplicableChange] = Field(default_factory=list)
     testable_changes: list[TestableChange] = Field(default_factory=list)
     sru_bugs: list[SRUBug] = Field(default_factory=list)
-
-    # Tracking
     exclusions: list[ExclusionRecord] = Field(default_factory=list)
+
     output_dir: Path = Path("output")
     work_dir: Path | None = None  # git-ubuntu clone directory
 
