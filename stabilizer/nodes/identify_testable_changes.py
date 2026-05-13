@@ -17,6 +17,9 @@ PROMPT_PATH = os.path.join(os.path.dirname(__file__), "..", "prompts", "testable
 # Stronger model for test plan generation
 MODEL = os.environ.get("STABILIZER_TESTABLE_MODEL", "qwen/qwen3.6-plus")
 
+# Maximum changes to send in a single LLM prompt to avoid context limits
+MAX_CHANGES_PER_PROMPT = 50
+
 
 def _build_change_text(change: ApplicableChange) -> str:
     """Format a change for LLM analysis."""
@@ -137,26 +140,24 @@ def run(state: StabilizerState) -> StabilizerState:
             any(c.sha in safe_shas for c in cg.commits)):
             safe_applicable.append(ac)
 
-    if not safe_applicable:
-        state.testable_changes = []
-        return state
-
+    total_to_test = len(safe_applicable)
     print(
-        f"  [dim]Generating test plans for {len(safe_applicable)} safe+applicable changes...[/dim]"
+        f"  [dim]Generating test plans for {total_to_test} safe+applicable changes...[/dim]"
     )
 
-    prompt = _build_prompt(
-        safe_applicable,
-        state.package,
-        state.target_release,
-    )
-    response = _call_llm(prompt)
+    # Batch if too many changes to avoid context length errors
+    if total_to_test > MAX_CHANGES_PER_PROMPT:
+        print(f"  [dim]→ Large set ({total_to_test} changes), processing in batches of {MAX_CHANGES_PER_PROMPT}[/dim]")
+        testable_changes = _generate_test_plans_in_batches(safe_applicable, state.package, state.target_release)
+    else:
+        prompt = _build_prompt(
+            safe_applicable,
+            state.package,
+            state.target_release,
+        )
+        response = _call_llm(prompt)
+        testable_changes = _parse_response(response, safe_applicable) if response else []
 
-    if response is None:
-        state.testable_changes = []
-        return state
-
-    testable_changes = _parse_response(response, safe_applicable)
     state.testable_changes = testable_changes
 
     # Record excluded changes
@@ -175,5 +176,26 @@ def run(state: StabilizerState) -> StabilizerState:
     print(
         f"  [dim]→ Found {len([tc for tc in testable_changes if tc.testable])} testable changes, excluded {excluded_testable}[/dim]"
     )
-
     return state
+
+
+def _generate_test_plans_in_batches(
+    changes: list[ApplicableChange], package: str, target_release: str
+) -> list[TestableChange]:
+    """Split large sets of changes into batches for test plan generation."""
+    all_testable = []
+    batch_size = MAX_CHANGES_PER_PROMPT
+
+    for i in range(0, len(changes), batch_size):
+        batch = changes[i : i + batch_size]
+        print(f"  [dim]  Processing test plan batch {i//batch_size + 1} ({len(batch)} changes)[/dim]")
+
+        prompt = _build_prompt(batch, package, target_release)
+        response = _call_llm(prompt)
+
+        if response:
+            batch_testable = _parse_response(response, batch)
+            all_testable.extend(batch_testable)
+
+    return all_testable
+

@@ -17,6 +17,9 @@ PROMPT_PATH = os.path.join(os.path.dirname(__file__), "..", "prompts", "safe_cha
 # Model for classification - cheaper model sufficient for this task
 MODEL = os.environ.get("STABILIZER_SAFE_CHANGES_MODEL", "qwen/qwen3.6-plus")
 
+# Maximum commits to send in a single LLM prompt to avoid context limits
+MAX_COMMITS_PER_PROMPT = 80
+
 
 def _build_commit_text(commit: CommitInfo) -> str:
     """Format a commit for LLM analysis."""
@@ -130,16 +133,18 @@ def run(state: StabilizerState) -> StabilizerState:
     if not commits_to_classify:
         return state
 
-    # Report progress during LLM classification
-    print(f"  [dim]Evaluating {len(commits_to_classify)} applicable commits for SRU safety...[/dim]")
+    total_commits = len(commits_to_classify)
+    print(f"  [dim]Evaluating {total_commits} applicable commits for SRU safety...[/dim]")
 
-    prompt = _build_prompt(commits_to_classify, state.package)
-    response = _call_llm(prompt)
+    # Batch if too many commits to avoid context length errors
+    if total_commits > MAX_COMMITS_PER_PROMPT:
+        print(f"  [dim]→ Large set ({total_commits} commits), processing in batches of {MAX_COMMITS_PER_PROMPT}[/dim]")
+        safe_changes = _classify_in_batches(commits_to_classify, state.package)
+    else:
+        prompt = _build_prompt(commits_to_classify, state.package)
+        response = _call_llm(prompt)
+        safe_changes = _parse_response(response, commits_to_classify) if response else []
 
-    if response is None:
-        return state
-
-    safe_changes = _parse_response(response, commits_to_classify)
     state.safe_changes = safe_changes
 
     # Record excluded commits (only from the ones we actually classified)
@@ -161,3 +166,22 @@ def run(state: StabilizerState) -> StabilizerState:
     )
 
     return state
+
+
+def _classify_in_batches(commits: list[CommitInfo], package: str) -> list[ChangeGroup]:
+    """Split large commit sets into batches to avoid context limits."""
+    all_safe = []
+    batch_size = MAX_COMMITS_PER_PROMPT
+
+    for i in range(0, len(commits), batch_size):
+        batch = commits[i : i + batch_size]
+        print(f"  [dim]  Processing batch {i//batch_size + 1} ({len(batch)} commits)[/dim]")
+
+        prompt = _build_prompt(batch, package)
+        response = _call_llm(prompt)
+
+        if response:
+            batch_safe = _parse_response(response, batch)
+            all_safe.extend(batch_safe)
+
+    return all_safe
