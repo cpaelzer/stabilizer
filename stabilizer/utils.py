@@ -61,28 +61,30 @@ def clone_package(package: str, work_dir: Path) -> Path:
     target = work_dir / package
     if target.exists():
         return target
+
+    print(f"  → Cloning Ubuntu package {package}...")
+
     # git-ubuntu clone creates the target directory itself
     # but requires the parent directory to exist AND be the cwd
     work_dir.mkdir(parents=True, exist_ok=True)
+
     # Ensure we are actually in the directory before running git-ubuntu
     # (git-ubuntu snap calls os.getcwd() during arg parsing)
     old_cwd = os.getcwd()
     try:
         os.chdir(str(work_dir))
-        run_cmd(["git-ubuntu", "clone", package], cwd=str(work_dir))
+        # Run without check=True to capture error output
+        proc = run_cmd(["git-ubuntu", "clone", package], cwd=str(work_dir), check=False)
+        if proc.returncode != 0:
+            error_msg = proc.stderr.strip() or proc.stdout.strip() or "Unknown error"
+            raise RuntimeError(f"git-ubuntu clone failed for {package}: {error_msg}")
     finally:
         os.chdir(old_cwd)
-    return target
-    # git-ubuntu clone creates the target directory itself
-    # but requires the parent directory to exist and cwd to be valid
-    work_dir.mkdir(parents=True, exist_ok=True)
-    # Use shell=True to ensure git-ubuntu runs from the correct directory
-    run_cmd(["git-ubuntu", "clone", package], cwd=str(work_dir))
-    return target
-    # git-ubuntu clone creates the target directory itself
-    # but requires the parent directory to exist and cwd to be valid
-    work_dir.mkdir(parents=True, exist_ok=True)
-    run_cmd(["git-ubuntu", "clone", package], cwd=str(work_dir))
+
+    if not target.exists():
+        raise RuntimeError(f"git-ubuntu clone did not create expected directory for {package}")
+
+    print(f"  → Successfully cloned {package}")
     return target
 
 
@@ -165,47 +167,64 @@ def get_git_tags(repo_path: Path) -> list[str]:
     return [t.strip() for t in proc.stdout.split("\n") if t.strip()]
 
 
-def find_tag_for_version(tags: list[str], version: str) -> str | None:
+def find_tag_for_version(tags: list[str], version: str, package_name: str | None = None) -> str | None:
     """Find a git tag that matches an upstream version with high tolerance.
 
-    Handles epochs, +dfsg suffixes (already stripped in VersionInfo), common
-    tag prefixes (v, release-, etc.), and version variations.
+    Handles package-specific naming (jq-1.6), version prefixes (v1.6, release-1.6),
+    release candidates, epochs, and other common patterns.
     """
     if not version or not tags:
         return None
 
-    # Clean version for matching (remove any remaining suffixes)
+    # Clean version for matching (remove any rc/beta suffixes, epochs, +dfsg, etc.)
     clean_version = re.sub(r"[-+].*$", "", version).strip()
+    clean_version = re.sub(r"(rc|beta|alpha|pre|dev)\d*", "", clean_version).strip()
 
-    if clean_version in tags:
-        return clean_version
+    # Priority order for tag matching
+    candidates = []
 
-    # Try common prefixes with both original and cleaned version
-    for v in [version, clean_version]:
-        for prefix in ["v", "V", "release-", "rel-", "v", f"{v.split('.')[0]}-" if "." in v else ""]:
-            if prefix:
-                candidate = f"{prefix}{v}"
-                if candidate in tags:
-                    return candidate
+    # 1. Package-specific tags first (most accurate for many projects)
+    if package_name:
+        for prefix in [f"{package_name}-", f"{package_name}_"]:
+            candidates.append(f"{prefix}{clean_version}")
+            candidates.append(f"{prefix}{version}")
+            # Also try with rc suffixes if present in original
+            if "rc" in version.lower():
+                candidates.append(f"{prefix}{version.lower()}")
+                candidates.append(f"{prefix}{version}")
 
-        # Handle underscore vs dot (common in tags)
-        underscore_version = v.replace(".", "_")
-        if underscore_version in tags:
-            return underscore_version
-        v_underscore = f"v{underscore_version}"
-        if v_underscore in tags:
-            return v_underscore
+    # 2. Common version tag patterns
+    for v in [clean_version, version]:
+        for prefix in ["v", "V", "release-", "rel-", ""]:
+            candidates.append(f"{prefix}{v}")
+            if "." in v:
+                candidates.append(f"{prefix}{v.replace('.', '_')}")
+                candidates.append(f"v{v.replace('.', '_')}")
 
-        # Try without any prefix for the cleaned version
-        if v in tags:
-            return v
+        # Handle release candidates explicitly
+        if "rc" in version.lower():
+            rc_match = re.search(r'(rc|beta|alpha)\d*', version, re.IGNORECASE)
+            if rc_match:
+                rc_part = rc_match.group(0)
+                candidates.append(f"{v}{rc_part.lower()}")
+                candidates.append(f"v{v}{rc_part.lower()}")
 
-    # Fuzzy match: look for tags that contain the version as substring
+    # 3. Check exact matches first
+    for candidate in candidates:
+        if candidate in tags:
+            return candidate
+
+    # 4. Fuzzy matching as fallback - prefer tags that contain the version
     for tag in tags:
-        tag_clean = re.sub(r"[-+].*$", "", tag).strip()
+        tag_clean = re.sub(r"[-+](rc|beta|alpha|dfsg|ubuntu|debian).*", "", tag, flags=re.IGNORECASE).strip()
         if tag_clean == clean_version or tag_clean.endswith(clean_version):
             return tag
-        if clean_version in tag_clean or tag_clean in clean_version:
+        if clean_version in tag_clean and len(tag_clean) < len(clean_version) + 10:  # Reasonable closeness
+            return tag
+
+    # 5. Last resort: substring match
+    for tag in tags:
+        if clean_version in tag or version in tag:
             return tag
 
     return None

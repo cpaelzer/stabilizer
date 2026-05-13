@@ -126,8 +126,11 @@ def run(state: StabilizerState) -> StabilizerState:
         work_dir.mkdir(parents=True, exist_ok=True)
         state.work_dir = work_dir
 
-    # Clone the Ubuntu package
-    pkg_path = clone_package(state.package, state.work_dir)
+    # Clone the Ubuntu package (with better error handling)
+    try:
+        pkg_path = clone_package(state.package, state.work_dir)
+    except Exception as e:
+        raise RuntimeError(f"Failed to clone package {state.package}: {e}") from e
     debian_path = pkg_path / "debian"
 
     # Collect hints from packaging

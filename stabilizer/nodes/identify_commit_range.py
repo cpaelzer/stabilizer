@@ -54,26 +54,10 @@ def find_tag_in_repo(repo_path: Path, version: str, package_name: str) -> str | 
     """Find a tag matching the version, trying package-specific prefixes."""
     tags = get_git_tags(repo_path)
 
-    # Try exact match first
-    tag = find_tag_for_version(tags, version)
+    # Use the improved find_tag_for_version with package context
+    tag = find_tag_for_version(tags, version, package_name)
     if tag:
         return tag
-
-    # Try package-specific prefixes (e.g., "jq-1.6", "dovecot-2.3.19")
-    for prefix in [f"{package_name}-", f"{package_name}_"]:
-        tagged = find_tag_for_version(tags, f"{prefix}{version}")
-        if tagged:
-            return tagged
-
-    # Try fuzzy matching for common patterns
-    for tag in tags:
-        # Remove common prefixes
-        clean = tag
-        for p in ["v", "release-", "rel-", f"{package_name}-", f"{package_name}_"]:
-            if clean.startswith(p):
-                clean = clean[len(p) :]
-        if clean == version:
-            return tag
 
     return None
 
