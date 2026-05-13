@@ -7,6 +7,9 @@ from __future__ import annotations
 
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from threading import Semaphore
+import time
 
 import httpx
 
@@ -19,6 +22,10 @@ MODEL = os.environ.get("STABILIZER_TESTABLE_MODEL", "qwen/qwen3.6-plus")
 
 # Maximum changes to send in a single LLM prompt to avoid context limits
 MAX_CHANGES_PER_PROMPT = 50
+
+# Rate limiting for LLM calls - be respectful to the API provider
+MAX_CONCURRENT_LLM_CALLS = 3
+LLM_CALL_DELAY = 1.0  # seconds between calls when rate limited
 
 
 def _build_change_text(change: ApplicableChange) -> str:
@@ -48,35 +55,41 @@ def _build_prompt(changes: list, package: str, target_release: str) -> str:
     )
 
 
+_llm_semaphore = Semaphore(MAX_CONCURRENT_LLM_CALLS)
+
+
 def _call_llm(prompt: str) -> str | None:
-    """Call OpenRouter API for test plan generation."""
+    """Call OpenRouter API for test plan generation with rate limiting."""
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY environment variable not set")
 
-    response = httpx.post(
-        "https://openrouter.ai/api/v1/chat/completions",
-        headers={
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/canonical/stabilizer",
-            "X-Title": "Stabilizer SRU Tool",
-        },
-        json={
-            "model": MODEL,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": 0.1,
-            "max_tokens": 4000,
-        },
-        timeout=120,
-    )
-    try:
-        response.raise_for_status()
-    except httpx.HTTPStatusError:
-        print(f"OpenRouter API error {response.status_code}: {response.text}")
-        raise
-    data = response.json()
-    return data["choices"][0]["message"]["content"]
+    with _llm_semaphore:
+        response = httpx.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+                "HTTP-Referer": "https://github.com/canonical/stabilizer",
+                "X-Title": "Stabilizer SRU Tool",
+            },
+            json={
+                "model": MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": 0.1,
+                "max_tokens": 4000,
+            },
+            timeout=120,
+        )
+        try:
+            response.raise_for_status()
+        except httpx.HTTPStatusError:
+            print(f"OpenRouter API error {response.status_code}: {response.text}")
+            raise
+        data = response.json()
+        # Small delay to respect rate limits
+        time.sleep(LLM_CALL_DELAY / MAX_CONCURRENT_LLM_CALLS)
+        return data["choices"][0]["message"]["content"]
 
 
 def _parse_response(response: str, changes: list) -> list[TestableChange]:
@@ -189,11 +202,14 @@ def _generate_test_plans_in_batches(
         print(f"    Processing test plan batch {i//batch_size + 1} ({len(batch)} changes)")
 
         prompt = _build_prompt(batch, package, target_release)
-        response = _call_llm(prompt)
-
-        if response:
-            batch_testable = _parse_response(response, batch)
-            all_testable.extend(batch_testable)
+        try:
+            response = _call_llm(prompt)
+            if response:
+                batch_testable = _parse_response(response, batch)
+                all_testable.extend(batch_testable)
+        except Exception as e:
+            print(f"  [yellow]Warning: Test plan batch {i//batch_size + 1} failed: {e}[/yellow]")
+            # Continue with other batches
 
     return all_testable
 
