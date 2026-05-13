@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: GPL-3.0-only
 
 OPENROUTER_API_KEY
+.workshop.lock
 *.swp
 __pycache__/
 *.py[cod]
