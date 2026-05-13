@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -19,14 +20,24 @@ class VersionInfo(BaseModel):
 
     @classmethod
     def from_version_string(cls, release: str, version: str) -> VersionInfo:
-        """Parse a Debian version string to extract upstream version."""
-        # Upstream version is everything before the last '-' that starts with a digit
-        # Debian format: upstream_version-debian_revision
-        # e.g. "1.6-2.1ubuntu3.2" -> upstream="1.6"
-        # e.g. "1.7.1-3build1" -> upstream="1.7.1"
-        # e.g. "1.7.1-3ubuntu0.24.04.2" -> upstream="1.7.1"
+        """Parse a Debian version string to extract upstream version.
+
+        Handles epochs (1:), dfsg repacks (+dfsg*), and other common patterns.
+        """
+        # Strip epoch (e.g. "1:2.3.21+dfsg1-..." -> "2.3.21+dfsg1-...")
+        if ":" in version:
+            version = version.split(":", 1)[1]
+
+        # Remove +dfsgN suffixes (common for repackaged upstream tarballs)
+        version = re.sub(r"\+dfsg\d*", "", version)
+
+        # Get upstream part before debian revision
         parts = version.rsplit("-", 1)
         upstream = parts[0] if len(parts) > 1 else version
+
+        # Clean any remaining + suffixes
+        upstream = upstream.split("+")[0]
+
         return cls(release=release, version=version, upstream_version=upstream)
 
 

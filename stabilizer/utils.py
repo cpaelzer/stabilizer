@@ -166,23 +166,47 @@ def get_git_tags(repo_path: Path) -> list[str]:
 
 
 def find_tag_for_version(tags: list[str], version: str) -> str | None:
-    """Find a git tag that matches an upstream version."""
-    if version in tags:
-        return version
+    """Find a git tag that matches an upstream version with high tolerance.
 
-    for prefix in ["v", "release-", "rel-", f"{version.split('.')[0]}-", ""]:
-        if prefix:
-            candidate = f"{prefix}{version}"
-            if candidate in tags:
-                return candidate
+    Handles epochs, +dfsg suffixes (already stripped in VersionInfo), common
+    tag prefixes (v, release-, etc.), and version variations.
+    """
+    if not version or not tags:
+        return None
 
-    underscore_version = version.replace(".", "_")
-    if underscore_version in tags:
-        return underscore_version
+    # Clean version for matching (remove any remaining suffixes)
+    clean_version = re.sub(r"[-+].*$", "", version).strip()
 
-    v_underscore = f"v{underscore_version}"
-    if v_underscore in tags:
-        return v_underscore
+    if clean_version in tags:
+        return clean_version
+
+    # Try common prefixes with both original and cleaned version
+    for v in [version, clean_version]:
+        for prefix in ["v", "V", "release-", "rel-", "v", f"{v.split('.')[0]}-" if "." in v else ""]:
+            if prefix:
+                candidate = f"{prefix}{v}"
+                if candidate in tags:
+                    return candidate
+
+        # Handle underscore vs dot (common in tags)
+        underscore_version = v.replace(".", "_")
+        if underscore_version in tags:
+            return underscore_version
+        v_underscore = f"v{underscore_version}"
+        if v_underscore in tags:
+            return v_underscore
+
+        # Try without any prefix for the cleaned version
+        if v in tags:
+            return v
+
+    # Fuzzy match: look for tags that contain the version as substring
+    for tag in tags:
+        tag_clean = re.sub(r"[-+].*$", "", tag).strip()
+        if tag_clean == clean_version or tag_clean.endswith(clean_version):
+            return tag
+        if clean_version in tag_clean or tag_clean in clean_version:
+            return tag
 
     return None
 
