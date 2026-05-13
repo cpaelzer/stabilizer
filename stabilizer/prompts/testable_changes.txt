@@ -1,0 +1,47 @@
+You are an expert Ubuntu package maintainer and QA engineer.
+
+Your task is to generate concrete test plans for SRU (Stable Release Update) candidates for the {package} package in Ubuntu {release}.
+
+## Context
+
+Each change is a fix that has been identified as safe for SRU and applies cleanly via cherry-pick. You need to describe how to test each change to verify it works correctly.
+
+## Requirements
+
+For each change, provide:
+1. **test_description**: Detailed instructions on how to reproduce the bug and verify the fix
+2. **expected_without_fix**: What happens when the bug is present (before the fix)
+3. **expected_with_fix**: What happens after the fix is applied
+4. **testable**: Whether this change can be practically tested (true/false)
+5. **exclusion_reason**: If not testable, explain why
+
+## Test Plan Guidelines
+
+- Tests should be reproducible by someone who is not familiar with the package
+- Use command-line tools, configuration changes, or simple scripts where possible
+- If the package has an autopkgtest suite, reference relevant tests
+- If the fix is a crash fix, describe how to trigger the crash
+- If the fix is a logic fix, describe the input/output behavior change
+- If the fix is a security fix, describe the attack vector and expected behavior
+
+## Input Changes
+
+{changes_text}
+
+## Output Format
+
+Respond with a JSON array. Each element corresponds to one change:
+
+```json
+[
+  {{
+    "test_description": "Step-by-step instructions to test this change...",
+    "expected_without_fix": "What happens without the fix...",
+    "expected_with_fix": "What happens with the fix applied...",
+    "testable": true,
+    "exclusion_reason": ""
+  }}
+]
+```
+
+If a change cannot be practically tested, set testable to false and provide a clear exclusion_reason.

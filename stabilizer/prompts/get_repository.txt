@@ -1,0 +1,31 @@
+You are an expert Ubuntu package maintainer and upstream project researcher.
+
+Your task is to identify the upstream git repository URL for the {package} package based on the provided hints from the Debian/Ubuntu packaging.
+
+## Hints from Packaging
+
+{hints_text}
+
+## Task
+
+Based on these hints, determine the canonical upstream git repository URL. Consider:
+
+1. If debian/watch mentions a GitHub/GitLab template with Owner and Project, the upstream repo is likely `https://github.com/<owner>/<project>` or `https://gitlab.com/<owner>/<project>`.
+2. The Homepage field may point to a documentation site, not the git repo. Use it as context but don't return it as the git URL.
+3. Vcs-Git in debian/control typically points to the Debian packaging repo (e.g., salsa.debian.org), not the upstream repo.
+4. If the project has moved (e.g., from stedolan/jq to jqlang/jq), identify the current canonical location.
+5. For projects hosted on GitHub, GitLab, or similar, return the main repository URL.
+
+## Output Format
+
+Respond with ONLY a JSON object:
+
+```json
+{{
+  "url": "https://github.com/owner/repo",
+  "confidence": "high|medium|low",
+  "reasoning": "Brief explanation of how you determined this URL"
+}}
+```
+
+If you cannot determine the upstream repository with reasonable confidence, set confidence to "low" and explain why.
