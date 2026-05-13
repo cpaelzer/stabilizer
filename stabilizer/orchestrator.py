@@ -72,9 +72,12 @@ def run(
                     state = phase_func(state)
                     # Report phase outcome
                     _report_phase_outcome(console, phase_name, state)
-                    progress.update(task, description=f"[green]✓ {phase_name}")
+                    progress.update(task, completed=1, total=1, description=f"[green]✓ {phase_name}")
+                    # Remove completed task to keep display clean
+                    progress.remove_task(task)
                 except Exception as e:
-                    progress.update(task, description=f"[red]✗ {phase_name}: {e}")
+                    progress.update(task, completed=1, total=1, description=f"[red]✗ {phase_name}: {e}")
+                    progress.remove_task(task)
                     console.print(f"\n[red]Error in phase '{phase_name}': {e}[/red]")
                     raise
 
