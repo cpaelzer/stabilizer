@@ -174,9 +174,28 @@ def run(state: StabilizerState) -> StabilizerState:
             excluded_count += 1
 
     state.safe_changes = safe_changes
-    # Filter applicable_changes to only those that were classified as safe by LLM
-    # This preserves the LLM-generated impact/regression_risk metadata
-    if state.applicable_changes:
+
+    # Merge LLM-generated metadata (impact, regression_risk) into applicable changes
+    # This ensures the impact and "Where problems could occur" sections are populated
+    if state.applicable_changes and safe_changes:
+        safe_shas = {c.sha for g in safe_changes for c in g.commits}
+        safe_groups_by_sha = {}
+        for group in safe_changes:
+            for commit in group.commits:
+                safe_groups_by_sha[commit.sha] = group
+
+        for ac in state.applicable_changes:
+            for commit in ac.change_group.commits:
+                if commit.sha in safe_groups_by_sha:
+                    # Merge the LLM metadata into this change group
+                    llm_group = safe_groups_by_sha[commit.sha]
+                    ac.change_group.impact = llm_group.impact
+                    ac.change_group.regression_risk = llm_group.regression_risk
+                    ac.change_group.title = llm_group.title or ac.change_group.title
+                    break
+
+    # Filter applicable_changes to only those that were classified as safe
+    if state.applicable_changes and safe_changes:
         safe_applicable = []
         safe_shas = {c.sha for g in safe_changes for c in g.commits}
         for ac in state.applicable_changes:
