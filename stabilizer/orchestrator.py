@@ -57,7 +57,7 @@ def run(
     # Use temporary directory for work files with automatic cleanup
     with tempfile.TemporaryDirectory(prefix="stabilizer-") as temp_dir:
         state.work_dir = Path(temp_dir)
-        console.print(f"[dim]Working directory: {state.work_dir}[/dim]")
+        console.print(f"Working directory: {state.work_dir}")
 
         with Progress(
             SpinnerColumn(),

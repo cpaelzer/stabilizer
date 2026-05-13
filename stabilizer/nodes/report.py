@@ -47,7 +47,7 @@ def run(state: StabilizerState) -> StabilizerState:
             console.print(
                 f"  {stage.replace('_', ' ').title()}: {len(exclusions)} excluded"
             )
-        console.print(f"\n[dim]Full details including all exclusion reasons written to:[/dim]")
+        console.print("\nFull details including all exclusion reasons written to:")
         console.print(f"[bold]{report_path}[/bold]")
 
     console.print(f"\n[bold]Output directory:[/bold] {output_dir}")

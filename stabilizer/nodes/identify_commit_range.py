@@ -114,7 +114,7 @@ def run(state: StabilizerState) -> StabilizerState:
     state.all_commits = get_commits_between(upstream_path, target_tag, source_tag)
 
     print(
-        f"  [dim]→ Found tags {target_tag}..{source_tag} with {len(state.all_commits)} commits[/dim]"
+        f"  → Found tags {target_tag}..{source_tag} with {len(state.all_commits)} commits"
     )
 
     return state

@@ -43,7 +43,7 @@ def run(state: StabilizerState) -> StabilizerState:
             checkout_branch(pkg_path, candidate)
             selected_branch = candidate
             checkout_success = True
-            print(f"  [dim]→ Using target branch: {candidate}[/dim]")
+            print(f"  → Using target branch: {candidate}")
             break
         except Exception:
             continue
@@ -84,7 +84,7 @@ def run(state: StabilizerState) -> StabilizerState:
 
     state.applicable_changes = applicable
     print(
-        f"  [dim]→ Found {len(applicable)} applicable changes, "
-        f"excluded {len([e for e in state.exclusions if e.stage == 'applicable'])}[/dim]"
+        f"  → Found {len(applicable)} applicable changes, "
+        f"excluded {len([e for e in state.exclusions if e.stage == 'applicable'])}"
     )
     return state

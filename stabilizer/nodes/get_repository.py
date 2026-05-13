@@ -137,7 +137,7 @@ def run(state: StabilizerState) -> StabilizerState:
             f"Could not find any hints in debian/watch or debian/control for {state.package}."
         )
 
-    print(f"  [dim]→ Collected {len(hints)} packaging hints (watch/control)[/dim]")
+    print(f"  → Collected {len(hints)} packaging hints (watch/control)")
 
     # Use LLM to identify upstream repository
     prompt = _build_prompt(hints, state.package)
@@ -154,7 +154,7 @@ def run(state: StabilizerState) -> StabilizerState:
             f"Could not parse upstream repository URL for {state.package} from LLM response."
         )
 
-    print(f"  [dim]→ LLM identified upstream: {repo_info.url}[/dim]")
+    print(f"  → LLM identified upstream: {repo_info.url}")
 
     state.repository = repo_info
     return state

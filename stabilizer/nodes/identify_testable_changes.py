@@ -141,13 +141,11 @@ def run(state: StabilizerState) -> StabilizerState:
             safe_applicable.append(ac)
 
     total_to_test = len(safe_applicable)
-    print(
-        f"  [dim]Generating test plans for {total_to_test} safe+applicable changes...[/dim]"
-    )
+    print(f"  Generating test plans for {total_to_test} safe+applicable changes...")
 
     # Batch if too many changes to avoid context length errors
     if total_to_test > MAX_CHANGES_PER_PROMPT:
-        print(f"  [dim]→ Large set ({total_to_test} changes), processing in batches of {MAX_CHANGES_PER_PROMPT}[/dim]")
+        print(f"  → Large set ({total_to_test} changes), processing in batches of {MAX_CHANGES_PER_PROMPT}")
         testable_changes = _generate_test_plans_in_batches(safe_applicable, state.package, state.target_release)
     else:
         prompt = _build_prompt(
@@ -174,7 +172,7 @@ def run(state: StabilizerState) -> StabilizerState:
             excluded_testable += 1
 
     print(
-        f"  [dim]→ Found {len([tc for tc in testable_changes if tc.testable])} testable changes, excluded {excluded_testable}[/dim]"
+        f"  → Found {len([tc for tc in testable_changes if tc.testable])} testable changes, excluded {excluded_testable}"
     )
     return state
 
@@ -188,7 +186,7 @@ def _generate_test_plans_in_batches(
 
     for i in range(0, len(changes), batch_size):
         batch = changes[i : i + batch_size]
-        print(f"  [dim]  Processing test plan batch {i//batch_size + 1} ({len(batch)} changes)[/dim]")
+        print(f"    Processing test plan batch {i//batch_size + 1} ({len(batch)} changes)")
 
         prompt = _build_prompt(batch, package, target_release)
         response = _call_llm(prompt)

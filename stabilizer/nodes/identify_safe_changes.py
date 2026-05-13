@@ -134,11 +134,11 @@ def run(state: StabilizerState) -> StabilizerState:
         return state
 
     total_commits = len(commits_to_classify)
-    print(f"  [dim]Evaluating {total_commits} applicable commits for SRU safety...[/dim]")
+    print(f"  Evaluating {total_commits} applicable commits for SRU safety...")
 
     # Batch if too many commits to avoid context length errors
     if total_commits > MAX_COMMITS_PER_PROMPT:
-        print(f"  [dim]→ Large set ({total_commits} commits), processing in batches of {MAX_COMMITS_PER_PROMPT}[/dim]")
+        print(f"  → Large set ({total_commits} commits), processing in batches of {MAX_COMMITS_PER_PROMPT}")
         safe_changes = _classify_in_batches(commits_to_classify, state.package)
     else:
         prompt = _build_prompt(commits_to_classify, state.package)
@@ -162,7 +162,7 @@ def run(state: StabilizerState) -> StabilizerState:
             excluded_count += 1
 
     print(
-        f"  [dim]→ Found {len(safe_changes)} safe changes, excluded {excluded_count} commits[/dim]"
+        f"  → Found {len(safe_changes)} safe changes, excluded {excluded_count} commits"
     )
 
     return state
@@ -175,7 +175,7 @@ def _classify_in_batches(commits: list[CommitInfo], package: str) -> list[Change
 
     for i in range(0, len(commits), batch_size):
         batch = commits[i : i + batch_size]
-        print(f"  [dim]  Processing batch {i//batch_size + 1} ({len(batch)} commits)[/dim]")
+        print(f"    Processing batch {i//batch_size + 1} ({len(batch)} commits)")
 
         prompt = _build_prompt(batch, package)
         response = _call_llm(prompt)
