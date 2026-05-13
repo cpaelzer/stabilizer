@@ -1,0 +1,9 @@
+# Ubuntu packages required for Stabilizer
+# Install with: sudo apt install $(cat requirements-ubuntu.txt)
+python3-launchpadlib
+python3-debian
+python3-rich
+python3-git
+python3-pydantic
+devscripts
+ubuntu-dev-tools
