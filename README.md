@@ -1,4 +1,4 @@
-# Stabilizer SRU Automation - Complete Implementation
+# Stabilizer SRU Automation - MVP
 
 The Stabilizer system has been successfully implemented with all requested components:
 

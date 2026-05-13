@@ -41,3 +41,10 @@ This decision balances the desire for good observability with long-term maintain
 
 - Start with `jq` (jammy → noble) as primary test case (simplest package, small C utility, excellent version tags, easy test cases)
 - Follow with `dovecot` (noble → resolute) and `git` (noble → resolute)
+
+## Known open tasks
+- Making all dependencies to be resolved through the workshop
+- If possible expose the main call as action through workshop to the outside directly
+- Identify and eliminate dead and superficial code out of the development frenzy
+- Deep review pass of all the created demo code
+- As others work on fuzzy backports, and packaging skills consider combining with that get the actual source package ready for build and test
