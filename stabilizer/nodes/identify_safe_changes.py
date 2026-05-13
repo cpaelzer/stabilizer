@@ -114,26 +114,38 @@ def _parse_response(response: str, commits: list[CommitInfo]) -> list[ChangeGrou
 
 
 def run(state: StabilizerState) -> StabilizerState:
-    """Identify safe SRU changes from the commit range."""
-    if not state.all_commits:
+    """Identify safe SRU changes from applicable commits only.
+
+    This runs after applicability testing to reduce LLM token usage -
+    only changes that cherry-pick cleanly are evaluated for SRU safety.
+    """
+    # Extract commits from applicable changes (or fall back to all_commits)
+    commits_to_classify = []
+    if state.applicable_changes:
+        for ac in state.applicable_changes:
+            commits_to_classify.extend(ac.change_group.commits)
+    else:
+        commits_to_classify = state.all_commits
+
+    if not commits_to_classify:
         return state
 
     # Report progress during LLM classification
-    print(f"  [dim]Evaluating {len(state.all_commits)} commits for SRU safety...[/dim]")
+    print(f"  [dim]Evaluating {len(commits_to_classify)} applicable commits for SRU safety...[/dim]")
 
-    prompt = _build_prompt(state.all_commits, state.package)
+    prompt = _build_prompt(commits_to_classify, state.package)
     response = _call_llm(prompt)
 
     if response is None:
         return state
 
-    safe_changes = _parse_response(response, state.all_commits)
+    safe_changes = _parse_response(response, commits_to_classify)
     state.safe_changes = safe_changes
 
-    # Record excluded commits
+    # Record excluded commits (only from the ones we actually classified)
     safe_shas = {c.sha for g in safe_changes for c in g.commits}
     excluded_count = 0
-    for commit in state.all_commits:
+    for commit in commits_to_classify:
         if commit.sha not in safe_shas:
             state.exclusions.append(
                 ExclusionRecord(

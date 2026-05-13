@@ -5,7 +5,7 @@
 
 from __future__ import annotations
 
-from stabilizer.types import ApplicableChange, ExclusionRecord, StabilizerState
+from stabilizer.types import ApplicableChange, ChangeGroup, CommitInfo, ExclusionRecord, StabilizerState
 from stabilizer.utils import (
     add_remote,
     checkout_branch,
@@ -15,8 +15,12 @@ from stabilizer.utils import (
 
 
 def run(state: StabilizerState) -> StabilizerState:
-    """Test if safe changes apply cleanly via cherry-pick."""
-    if not state.safe_changes:
+    """Test if commits apply cleanly via cherry-pick.
+
+    Runs before safe change classification to reduce LLM calls - only
+    applicable commits will be sent to the LLM for SRU safety analysis.
+    """
+    if not state.all_commits:
         return state
 
     pkg_path = state.work_dir / state.package
@@ -53,33 +57,34 @@ def run(state: StabilizerState) -> StabilizerState:
         fetch_remote(pkg_path, "upstream")
 
     applicable = []
-    for change_group in state.safe_changes:
-        # Try cherry-picking each commit in the group
-        all_apply = True
-        cherry_output = ""
-        for commit in change_group.commits:
-            success, output = cherry_pick_dry_run(pkg_path, commit.sha)
-            cherry_output += output
-            if not success:
-                all_apply = False
-                break
+    for commit in state.all_commits:
+        # Create minimal ChangeGroup for single commit
+        change_group = ChangeGroup(
+            commits=[commit],
+            title=commit.subject,
+        )
 
-        if all_apply:
+        success, output = cherry_pick_dry_run(pkg_path, commit.sha)
+        if success:
             applicable.append(
                 ApplicableChange(
                     change_group=change_group,
                     applies_cleanly=True,
-                    cherry_pick_output=cherry_output,
+                    cherry_pick_output=output,
                 )
             )
         else:
             state.exclusions.append(
                 ExclusionRecord(
-                    change_title=change_group.title,
+                    change_title=commit.subject,
                     stage="applicable",
-                    reason=f"Cherry-pick failed: {cherry_output[:200]}",
+                    reason=f"Cherry-pick failed: {output[:200]}",
                 )
             )
 
     state.applicable_changes = applicable
+    print(
+        f"  [dim]→ Found {len(applicable)} applicable changes, "
+        f"excluded {len([e for e in state.exclusions if e.stage == 'applicable'])}[/dim]"
+    )
     return state

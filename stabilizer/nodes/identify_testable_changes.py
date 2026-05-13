@@ -114,25 +114,49 @@ def _parse_response(response: str, changes: list) -> list[TestableChange]:
 
 
 def run(state: StabilizerState) -> StabilizerState:
-    """Generate test plans for applicable changes."""
-    if not state.applicable_changes:
+    """Generate test plans for safe AND applicable changes.
+
+    Only changes that both cherry-pick cleanly AND were classified as safe
+    SRU candidates by the LLM will have test plans generated. This avoids
+    wasting LLM tokens on changes that are not safe for SRU.
+    """
+    if not state.applicable_changes or not state.safe_changes:
+        # If we have no safe changes, nothing to test
+        state.testable_changes = []
+        return state
+
+    # Create lookup of safe change groups by title or commit SHAs
+    safe_titles = {g.title for g in state.safe_changes}
+    safe_shas = {c.sha for g in state.safe_changes for c in g.commits}
+
+    # Filter applicable changes to only those that are also safe
+    safe_applicable = []
+    for ac in state.applicable_changes:
+        cg = ac.change_group
+        if (cg.title in safe_titles or
+            any(c.sha in safe_shas for c in cg.commits)):
+            safe_applicable.append(ac)
+
+    if not safe_applicable:
+        state.testable_changes = []
         return state
 
     print(
-        f"  [dim]Generating test plans for {len(state.applicable_changes)} applicable changes...[/dim]"
+        f"  [dim]Generating test plans for {len(safe_applicable)} safe+applicable changes...[/dim]"
     )
 
     prompt = _build_prompt(
-        state.applicable_changes,
+        safe_applicable,
         state.package,
         state.target_release,
     )
     response = _call_llm(prompt)
 
     if response is None:
+        state.testable_changes = []
         return state
 
-    testable_changes = _parse_response(response, state.applicable_changes)
+    testable_changes = _parse_response(response, safe_applicable)
     state.testable_changes = testable_changes
 
     # Record excluded changes

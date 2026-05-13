@@ -27,8 +27,8 @@ PHASES = [
     ("Identifying versions", version_identifier.run),
     ("Detecting upstream repository", get_repository.run),
     ("Identifying commit range", identify_commit_range.run),
-    ("Classifying safe changes", identify_safe_changes.run),
     ("Testing cherry-pick applicability", identify_applicable_fixes.run),
+    ("Classifying safe changes", identify_safe_changes.run),
     ("Generating test plans", identify_testable_changes.run),
     ("Preparing SRU paperwork", prepare_paperwork.run),
     ("Generating report", report.run),
@@ -102,15 +102,15 @@ def _report_phase_outcome(console: Console, phase_name: str, state: StabilizerSt
                 f"{state.target_tag}..{state.source_tag} "
                 f"({len(state.all_commits)} commits)"
             )
-    elif phase_name == "Classifying safe changes":
-        console.print(
-            f"  [green]✓[/green] Safe changes: {len(state.safe_changes)} "
-            f"(excluded: {len([e for e in state.exclusions if e.stage == 'safe_changes'])})"
-        )
     elif phase_name == "Testing cherry-pick applicability":
         console.print(
             f"  [green]✓[/green] Applicable: {len(state.applicable_changes)} "
             f"(excluded: {len([e for e in state.exclusions if e.stage == 'applicable'])})"
+        )
+    elif phase_name == "Classifying safe changes":
+        console.print(
+            f"  [green]✓[/green] Safe changes: {len(state.safe_changes)} "
+            f"(excluded: {len([e for e in state.exclusions if e.stage == 'safe_changes'])})"
         )
     elif phase_name == "Generating test plans":
         console.print(

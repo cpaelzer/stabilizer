@@ -89,6 +89,29 @@ def test_version_identifier_integration():
     assert "1.7" in updated.source_version.upstream_version
 
 
+def test_version_parsing_with_epochs_and_dfsg():
+    """Test that VersionInfo correctly strips epochs and +dfsg suffixes.
+
+    This addresses the regression where dovecot 1:2.3.21+dfsg1-... and similar
+    versions could not be mapped to git tags.
+    """
+    from stabilizer.types import VersionInfo
+
+    test_cases = [
+        ("1:2.3.21+dfsg1-1ubuntu1", "2.3.21"),
+        ("2:10.0.0~rc1-1", "10.0.0~rc1"),
+        ("1.6-2.1ubuntu3.2", "1.6"),
+        ("1.7.1-3ubuntu0.24.04.2", "1.7.1"),
+        ("2.4.1+dfsg-1", "2.4.1"),
+    ]
+
+    for version_str, expected_upstream in test_cases:
+        vi = VersionInfo.from_version_string("jammy", version_str)
+        assert vi.upstream_version == expected_upstream, (
+            f"Expected {expected_upstream} for {version_str}, got {vi.upstream_version}"
+        )
+
+
 def test_get_repository_llm_integration(sample_state):
     """Test repository detection with mocked LLM response."""
     from stabilizer.nodes.get_repository import run as repo_run
@@ -228,44 +251,36 @@ def test_applicable_fixes_cherry_pick_simulation():
     from stabilizer.nodes.identify_applicable_fixes import run as applicable_run
     from stabilizer.types import ChangeGroup, CommitInfo
 
-    # Create test state with safe changes
-    state = StabilizerState(
-        package="test-pkg",
-        target_release="jammy",
-        source_release="noble",
-        safe_changes=[
-            ChangeGroup(
-                commits=[
-                    CommitInfo(
-                        sha="safecommit1",
-                        short_sha="safe1",
-                        subject="Fix memory leak in parser",
-                    )
-                ],
-                title="Fix memory leak in parser",
-            ),
-            ChangeGroup(
-                commits=[
-                    CommitInfo(
-                        sha="bigchange1",
-                        short_sha="big1",
-                        subject="Major refactoring of entire codebase",
-                    )
-                ],
-                title="Major refactoring of entire codebase",
-            ),
-        ],
-    )
+    # Create test state with all_commits (new flow: applicability runs before safe classification)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        state = StabilizerState(
+            package="test-pkg",
+            target_release="jammy",
+            source_release="noble",
+            work_dir=Path(tmpdir),
+            all_commits=[
+                CommitInfo(
+                    sha="safecommit1",
+                    short_sha="safe1",
+                    subject="Fix memory leak in parser",
+                ),
+                CommitInfo(
+                    sha="bigchange1",
+                    short_sha="big1",
+                    subject="Major refactoring of entire codebase",
+                ),
+            ],
+        )
 
-    # Mock cherry-pick to succeed for first change, fail for second
-    with patch("stabilizer.nodes.identify_applicable_fixes.cherry_pick_dry_run") as mock_cherry:
-        mock_cherry.side_effect = [(True, "success"), (False, "merge conflict")]
+        # Mock cherry-pick to succeed for first change, fail for second
+        with patch("stabilizer.nodes.identify_applicable_fixes.cherry_pick_dry_run") as mock_cherry:
+            mock_cherry.side_effect = [(True, "success"), (False, "merge conflict")]
 
-        with patch("stabilizer.nodes.identify_applicable_fixes.checkout_branch"):
-            with patch("stabilizer.nodes.identify_applicable_fixes.add_remote"):
-                with patch("stabilizer.nodes.identify_applicable_fixes.fetch_remote"):
-                    with patch("stabilizer.utils.run_cmd"):  # Mock any additional git operations
-                        updated = applicable_run(state)
+            with patch("stabilizer.nodes.identify_applicable_fixes.checkout_branch"):
+                with patch("stabilizer.nodes.identify_applicable_fixes.add_remote"):
+                    with patch("stabilizer.nodes.identify_applicable_fixes.fetch_remote"):
+                        with patch("stabilizer.utils.run_cmd"):  # Mock any additional git operations
+                            updated = applicable_run(state)
 
     assert len(updated.applicable_changes) == 1
     assert len(updated.exclusions) == 1
@@ -347,7 +362,8 @@ def test_end_to_end_workflow_with_mocks():
                     s,
                 )[-1]
 
-                with patch("stabilizer.nodes.identify_safe_changes.run") as mock_safe:
+                with patch("stabilizer.nodes.identify_applicable_fixes.run") as mock_applicable:
+                    # Create applicable change (now happens before safe classification)
                     safe_change = ChangeGroup(
                         commits=[
                             CommitInfo(
@@ -360,16 +376,16 @@ def test_end_to_end_workflow_with_mocks():
                         impact="Prevents crashes under specific conditions",
                         regression_risk="Isolated fix to error handling with existing tests",
                     )
-                    mock_safe.side_effect = lambda s: (
-                        setattr(s, "safe_changes", [safe_change]),
+                    applicable = MagicMock()
+                    applicable.change_group = safe_change
+                    mock_applicable.side_effect = lambda s: (
+                        setattr(s, "applicable_changes", [applicable]),
                         s,
                     )[-1]
 
-                    with patch("stabilizer.nodes.identify_applicable_fixes.run") as mock_applicable:
-                        applicable = MagicMock()
-                        applicable.change_group = safe_change
-                        mock_applicable.side_effect = lambda s: (
-                            setattr(s, "applicable_changes", [applicable]),
+                    with patch("stabilizer.nodes.identify_safe_changes.run") as mock_safe:
+                        mock_safe.side_effect = lambda s: (
+                            setattr(s, "safe_changes", [safe_change]),
                             s,
                         )[-1]
 
