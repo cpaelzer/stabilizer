@@ -76,12 +76,25 @@ def run(state: StabilizerState) -> StabilizerState:
                 )
             )
 
-    # Store the list of applicable commits for the next stage (safe classification)
-    # The safe classification stage will create proper ApplicableChange objects with LLM metadata
-    state.applicable_commits = applicable
+    # Create proper ApplicableChange objects for downstream stages
+    applicable_changes = []
+    for commit in applicable:
+        change_group = ChangeGroup(
+            commits=[commit],
+            title=commit.subject,
+        )
+        applicable_changes.append(
+            ApplicableChange(
+                change_group=change_group,
+                applies_cleanly=True,
+                cherry_pick_output="Validated via dry-run cherry-pick",
+            )
+        )
+
+    state.applicable_changes = applicable_changes
 
     print(
-        f"  → Found {len(applicable)} applicable changes out of {len(state.all_commits)}, "
+        f"  → Found {len(applicable_changes)} applicable changes out of {len(state.all_commits)}, "
         f"excluded {len([e for e in state.exclusions if e.stage == 'applicable'])}"
     )
     return state
