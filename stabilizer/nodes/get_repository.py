@@ -9,7 +9,6 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Optional
 
 import httpx
 
@@ -17,7 +16,6 @@ from stabilizer.types import RepositoryInfo, StabilizerState
 from stabilizer.utils import (
     clone_package,
     parse_debian_control,
-    parse_debian_watch,
 )
 
 PROMPT_PATH = os.path.join(os.path.dirname(__file__), "..", "prompts", "get_repository.txt")
@@ -54,7 +52,7 @@ def _build_prompt(hints: list[tuple[str, str]], package: str) -> str:
     return template.format(package=package, hints_text=hints_text)
 
 
-def _call_llm(prompt: str) -> Optional[str]:
+def _call_llm(prompt: str) -> str | None:
     """Call OpenRouter API for repository identification."""
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
@@ -78,14 +76,14 @@ def _call_llm(prompt: str) -> Optional[str]:
     )
     try:
         response.raise_for_status()
-    except httpx.HTTPStatusError as e:
+    except httpx.HTTPStatusError:
         print(f"OpenRouter API error {response.status_code}: {response.text}")
         raise
     data = response.json()
     return data["choices"][0]["message"]["content"]
 
 
-def _parse_response(response: str) -> Optional[RepositoryInfo]:
+def _parse_response(response: str) -> RepositoryInfo | None:
     """Parse LLM response into RepositoryInfo."""
     try:
         start = response.find("{")
@@ -101,13 +99,13 @@ def _parse_response(response: str) -> Optional[RepositoryInfo]:
             return None
 
         # Normalize GitHub URLs
-        gh_match = re.match(r'https?://github\.com/([^/]+)/([^/]+)', url)
+        gh_match = re.match(r"https?://github\.com/([^/]+)/([^/]+)", url)
         if gh_match:
             owner, repo_name = gh_match.groups()
             url = f"https://github.com/{owner}/{repo_name}"
 
         # Normalize GitLab URLs
-        gl_match = re.match(r'https?://gitlab\.com/([^/]+)/([^/]+)', url)
+        gl_match = re.match(r"https?://gitlab\.com/([^/]+)/([^/]+)", url)
         if gl_match:
             owner, repo_name = gl_match.groups()
             url = f"https://gitlab.com/{owner}/{repo_name}"

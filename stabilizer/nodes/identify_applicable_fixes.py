@@ -8,8 +8,8 @@ from __future__ import annotations
 from stabilizer.types import ApplicableChange, ExclusionRecord, StabilizerState
 from stabilizer.utils import (
     add_remote,
-    cherry_pick_dry_run,
     checkout_branch,
+    cherry_pick_dry_run,
     fetch_remote,
 )
 
@@ -52,17 +52,21 @@ def run(state: StabilizerState) -> StabilizerState:
                 break
 
         if all_apply:
-            applicable.append(ApplicableChange(
-                change_group=change_group,
-                applies_cleanly=True,
-                cherry_pick_output=cherry_output,
-            ))
+            applicable.append(
+                ApplicableChange(
+                    change_group=change_group,
+                    applies_cleanly=True,
+                    cherry_pick_output=cherry_output,
+                )
+            )
         else:
-            state.exclusions.append(ExclusionRecord(
-                change_title=change_group.title,
-                stage="applicable",
-                reason=f"Cherry-pick failed: {cherry_output[:200]}",
-            ))
+            state.exclusions.append(
+                ExclusionRecord(
+                    change_title=change_group.title,
+                    stage="applicable",
+                    reason=f"Cherry-pick failed: {cherry_output[:200]}",
+                )
+            )
 
     state.applicable_changes = applicable
     return state

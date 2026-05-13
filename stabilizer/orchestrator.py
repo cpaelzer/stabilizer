@@ -7,12 +7,10 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Callable
 
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from stabilizer.types import StabilizerState
 from stabilizer.nodes import (
     get_repository,
     identify_applicable_fixes,
@@ -23,6 +21,7 @@ from stabilizer.nodes import (
     report,
     version_identifier,
 )
+from stabilizer.types import StabilizerState
 
 PHASES = [
     ("Identifying versions", version_identifier.run),
@@ -51,7 +50,9 @@ def run(
         output_dir=output_dir,
     )
 
-    console.print(f"\n[bold cyan]Stabilizer: Analyzing {package} ({target_release} → {source_release})[/bold cyan]\n")
+    console.print(
+        f"\n[bold cyan]Stabilizer: Analyzing {package} ({target_release} → {source_release})[/bold cyan]\n"
+    )
 
     # Use temporary directory for work files with automatic cleanup
     with tempfile.TemporaryDirectory(prefix="stabilizer-") as temp_dir:
@@ -91,7 +92,9 @@ def _report_phase_outcome(console: Console, phase_name: str, state: StabilizerSt
             )
     elif phase_name == "Detecting upstream repository":
         if state.repository:
-            console.print(f"  [green]✓[/green] Upstream: {state.repository.url} (from {state.repository.source})")
+            console.print(
+                f"  [green]✓[/green] Upstream: {state.repository.url} (from {state.repository.source})"
+            )
     elif phase_name == "Identifying commit range":
         if state.target_tag and state.source_tag:
             console.print(

@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from stabilizer.types import SRUBug, StabilizerState
 
@@ -15,8 +14,8 @@ def _generate_bug_title(change: SRUBug) -> str:
     """Generate a filename-safe bug title."""
     title = change.title
     # Remove special characters and replace spaces with hyphens
-    title = re.sub(r'[^a-zA-Z0-9\s-]', '', title)
-    title = re.sub(r'\s+', '-', title)
+    title = re.sub(r"[^a-zA-Z0-9\s-]", "", title)
+    title = re.sub(r"\s+", "-", title)
     # Truncate if too long
     if len(title) > 80:
         title = title[:80]

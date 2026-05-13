@@ -17,8 +17,12 @@ def run(state: StabilizerState) -> StabilizerState:
 
     console.print("\n" + "=" * 60)
     console.print(f"[bold]Stabilizer Report: {state.package}[/bold]")
-    console.print(f"Target: {state.target_release} ({state.target_version.version if state.target_version else 'N/A'})")
-    console.print(f"Source: {state.source_release} ({state.source_version.version if state.source_version else 'N/A'})")
+    console.print(
+        f"Target: {state.target_release} ({state.target_version.version if state.target_version else 'N/A'})"
+    )
+    console.print(
+        f"Source: {state.source_release} ({state.source_version.version if state.source_version else 'N/A'})"
+    )
     console.print("=" * 60)
 
     # Summary statistics
@@ -51,12 +55,14 @@ def run(state: StabilizerState) -> StabilizerState:
         console.print("  (These were considered but did not meet SRU criteria)")
 
         # Group exclusions by stage
-        by_stage: dict[str, list[ExclusionRecord]] = {}
+        by_stage: dict[str, list] = {}
         for exc in state.exclusions:
             by_stage.setdefault(exc.stage, []).append(exc)
 
         for stage, exclusions in by_stage.items():
-            console.print(f"\n  [yellow]{stage.replace('_', ' ').title()}:[/yellow] {len(exclusions)} change(s) excluded")
+            console.print(
+                f"\n  [yellow]{stage.replace('_', ' ').title()}:[/yellow] {len(exclusions)} change(s) excluded"
+            )
             table = Table(show_header=True, header_style="bold yellow", show_lines=True)
             table.add_column("Change", width=50)
             table.add_column("Reason", width=60)
@@ -71,7 +77,9 @@ def run(state: StabilizerState) -> StabilizerState:
             if len(exclusions) > 8:
                 console.print(f"    ... and {len(exclusions) - 8} more exclusions")
 
-        console.print("\n[yellow]Note:[/yellow] SRU requires changes to be safe, applicable, and testable.")
+        console.print(
+            "\n[yellow]Note:[/yellow] SRU requires changes to be safe, applicable, and testable."
+        )
         console.print("  Only changes that pass all three filters generate SRU bug templates.")
 
     # Output location

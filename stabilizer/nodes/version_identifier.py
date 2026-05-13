@@ -18,13 +18,9 @@ def run(state: StabilizerState) -> StabilizerState:
     source_ver = versions.get(state.source_release)
 
     if target_ver is None:
-        raise RuntimeError(
-            f"Could not find version of {state.package} in {state.target_release}"
-        )
+        raise RuntimeError(f"Could not find version of {state.package} in {state.target_release}")
     if source_ver is None:
-        raise RuntimeError(
-            f"Could not find version of {state.package} in {state.source_release}"
-        )
+        raise RuntimeError(f"Could not find version of {state.package} in {state.source_release}")
 
     state.target_version = target_ver
     state.source_version = source_ver

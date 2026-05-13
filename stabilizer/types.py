@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -110,11 +109,11 @@ class StabilizerState(BaseModel):
     source_release: str
 
     # Phase outputs
-    target_version: Optional[VersionInfo] = None
-    source_version: Optional[VersionInfo] = None
-    repository: Optional[RepositoryInfo] = None
-    target_tag: Optional[str] = None
-    source_tag: Optional[str] = None
+    target_version: VersionInfo | None = None
+    source_version: VersionInfo | None = None
+    repository: RepositoryInfo | None = None
+    target_tag: str | None = None
+    source_tag: str | None = None
     all_commits: list[CommitInfo] = Field(default_factory=list)
     safe_changes: list[ChangeGroup] = Field(default_factory=list)
     applicable_changes: list[ApplicableChange] = Field(default_factory=list)
@@ -124,7 +123,7 @@ class StabilizerState(BaseModel):
     # Tracking
     exclusions: list[ExclusionRecord] = Field(default_factory=list)
     output_dir: Path = Path("output")
-    work_dir: Optional[Path] = None  # git-ubuntu clone directory
+    work_dir: Path | None = None  # git-ubuntu clone directory
 
     # Progress
     current_phase: str = "initializing"

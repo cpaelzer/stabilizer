@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Optional
 
 import httpx
 
@@ -40,7 +39,7 @@ def _build_prompt(commits: list[CommitInfo], package: str) -> str:
     return template.format(package=package, commits_text=commits_text)
 
 
-def _call_llm(prompt: str) -> Optional[str]:
+def _call_llm(prompt: str) -> str | None:
     """Call OpenRouter API for classification."""
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
@@ -64,7 +63,7 @@ def _call_llm(prompt: str) -> Optional[str]:
     )
     try:
         response.raise_for_status()
-    except httpx.HTTPStatusError as e:
+    except httpx.HTTPStatusError:
         print(f"OpenRouter API error {response.status_code}: {response.text}")
         raise
     data = response.json()
@@ -136,13 +135,17 @@ def run(state: StabilizerState) -> StabilizerState:
     excluded_count = 0
     for commit in state.all_commits:
         if commit.sha not in safe_shas:
-            state.exclusions.append(ExclusionRecord(
-                change_title=commit.subject,
-                stage="safe_changes",
-                reason="Not classified as safe SRU change by LLM analysis",
-            ))
+            state.exclusions.append(
+                ExclusionRecord(
+                    change_title=commit.subject,
+                    stage="safe_changes",
+                    reason="Not classified as safe SRU change by LLM analysis",
+                )
+            )
             excluded_count += 1
 
-    print(f"  [dim]→ Found {len(safe_changes)} safe changes, excluded {excluded_count} commits[/dim]")
+    print(
+        f"  [dim]→ Found {len(safe_changes)} safe changes, excluded {excluded_count} commits[/dim]"
+    )
 
     return state

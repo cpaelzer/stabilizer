@@ -31,7 +31,7 @@ def main():
     args = parser.parse_args()
 
     if args.command == "run":
-        state = run(
+        run(
             package=args.package,
             target_release=args.target,
             source_release=args.source,

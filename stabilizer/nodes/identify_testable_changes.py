@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Optional
 
 import httpx
 
@@ -24,7 +23,7 @@ def _build_change_text(change: ApplicableChange) -> str:
     change_group = change.change_group
     text = f"Title: {change_group.title}\n"
     text += f"Impact: {change_group.impact}\n"
-    text += f"Commits:\n"
+    text += "Commits:\n"
     for commit in change_group.commits:
         text += f"  - {commit.short_sha}: {commit.subject}\n"
         if commit.body:
@@ -46,7 +45,7 @@ def _build_prompt(changes: list, package: str, target_release: str) -> str:
     )
 
 
-def _call_llm(prompt: str) -> Optional[str]:
+def _call_llm(prompt: str) -> str | None:
     """Call OpenRouter API for test plan generation."""
     api_key = os.environ.get("OPENROUTER_API_KEY")
     if not api_key:
@@ -70,7 +69,7 @@ def _call_llm(prompt: str) -> Optional[str]:
     )
     try:
         response.raise_for_status()
-    except httpx.HTTPStatusError as e:
+    except httpx.HTTPStatusError:
         print(f"OpenRouter API error {response.status_code}: {response.text}")
         raise
     data = response.json()
@@ -119,7 +118,9 @@ def run(state: StabilizerState) -> StabilizerState:
     if not state.applicable_changes:
         return state
 
-    print(f"  [dim]Generating test plans for {len(state.applicable_changes)} applicable changes...[/dim]")
+    print(
+        f"  [dim]Generating test plans for {len(state.applicable_changes)} applicable changes...[/dim]"
+    )
 
     prompt = _build_prompt(
         state.applicable_changes,
@@ -138,13 +139,17 @@ def run(state: StabilizerState) -> StabilizerState:
     excluded_testable = 0
     for tc in testable_changes:
         if not tc.testable:
-            state.exclusions.append(ExclusionRecord(
-                change_title=tc.applicable_change.change_group.title,
-                stage="testable",
-                reason=tc.test_exclusion_reason or "Not testable",
-            ))
+            state.exclusions.append(
+                ExclusionRecord(
+                    change_title=tc.applicable_change.change_group.title,
+                    stage="testable",
+                    reason=tc.test_exclusion_reason or "Not testable",
+                )
+            )
             excluded_testable += 1
 
-    print(f"  [dim]→ Found {len([tc for tc in testable_changes if tc.testable])} testable changes, excluded {excluded_testable}[/dim]")
+    print(
+        f"  [dim]→ Found {len([tc for tc in testable_changes if tc.testable])} testable changes, excluded {excluded_testable}[/dim]"
+    )
 
     return state

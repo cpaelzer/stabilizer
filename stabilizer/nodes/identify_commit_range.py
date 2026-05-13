@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 from stabilizer.types import StabilizerState
 from stabilizer.utils import (
@@ -51,7 +50,7 @@ def clone_upstream_repo(state: StabilizerState) -> Path:
     return upstream_path
 
 
-def find_tag_in_repo(repo_path: Path, version: str, package_name: str) -> Optional[str]:
+def find_tag_in_repo(repo_path: Path, version: str, package_name: str) -> str | None:
     """Find a tag matching the version, trying package-specific prefixes."""
     tags = get_git_tags(repo_path)
 
@@ -72,7 +71,7 @@ def find_tag_in_repo(repo_path: Path, version: str, package_name: str) -> Option
         clean = tag
         for p in ["v", "release-", "rel-", f"{package_name}-", f"{package_name}_"]:
             if clean.startswith(p):
-                clean = clean[len(p):]
+                clean = clean[len(p) :]
         if clean == version:
             return tag
 
@@ -114,6 +113,8 @@ def run(state: StabilizerState) -> StabilizerState:
     # Get all commits between the two tags from the upstream repo
     state.all_commits = get_commits_between(upstream_path, target_tag, source_tag)
 
-    print(f"  [dim]→ Found tags {target_tag}..{source_tag} with {len(state.all_commits)} commits[/dim]")
+    print(
+        f"  [dim]→ Found tags {target_tag}..{source_tag} with {len(state.all_commits)} commits[/dim]"
+    )
 
     return state
